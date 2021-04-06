@@ -39,4 +39,8 @@ D_fake_loss = bce(fake, D_fake_result)
 This was needed because `BatchNormalization` layers (used in all nets in the model) behaves differently depending on if it is training or not.
 This seems to have solved the issue that would lead to constant losses.
 
+Discriminator is trained every 5 training steps of the generator.
+
+Images have not changed too much.
+
 
