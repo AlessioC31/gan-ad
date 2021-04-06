@@ -187,8 +187,8 @@ def make_decoder(latent_size, channels=3, act=L.ReLU):
 
     i = L.Input([latent_size])
 
-    x = L.Dense(16*filters)(i)
-    x = L.Dense(4*4*16*filters, use_bias=False)(x)
+    x = L.Dense(16*filters, use_bias=False, kernel_initializer='random_normal',)(i)
+    x = L.Dense(4*4*16*filters, use_bias=False, kernel_initializer='random_normal',)(x)
     x = L.Reshape([4,4,16*filters])(x)
 
     x = generator_block(x, 16*filters, act)

@@ -206,14 +206,14 @@ def make_encoder(image_size, latent_size, channels=3, act=L.ReLU, as_discriminat
     x = encoder_block(x, filters*16, act) #4x4x1024
 
     x = L.Flatten()(x)
-    x = L.Dense(16*filters, use_bias=False)(x)
+    x = L.Dense(16*filters, use_bias=False, kernel_initializer='random_normal')(x)
     x = L.BatchNormalization()(x)
     x = act()(x)
 
     if as_discriminator:
-        o = L.Dense(1, activation='sigmoid')(x)
+        o = L.Dense(1, activation='sigmoid', kernel_initializer='random_normal')(x)
 
-    o = L.Dense(latent_size)(x)
+    o = L.Dense(latent_size, kernel_initializer='random_normal')(x)
 
     return K.Model(inputs=i, outputs=o)
     # x = L.Conv2D(
