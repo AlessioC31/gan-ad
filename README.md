@@ -21,3 +21,22 @@ We have an almost working generative model:
 * WGAN-GP
 * Train discriminator every k steps
 * BatchNormalization after activation function (but this still needs to be investigated)
+
+## 06/04/2021
+
+During training loop models now are called with proper `training` flag, example:
+
+```python
+D_real_result = discriminator(images, training=d_train)
+D_real_loss = bce(valid, D_real_result)
+
+z = K.backend.random_normal([batch_size, latent_size]) # z with mean=0, std=1
+x_fake = generator(z, training=g_train)
+D_fake_result = discriminator(x_fake, training=d_train)
+D_fake_loss = bce(fake, D_fake_result)
+```
+
+This was needed because `BatchNormalization` layers (used in all nets in the model) behaves differently depending on if it is training or not.
+This seems to have solved the issue that would lead to constant losses.
+
+
