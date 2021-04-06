@@ -45,40 +45,45 @@ def train_step(images, encoder, generator, discriminator, \
     
     # latent = K.random_normal([batch_size, latent_size])
 
-    with tf.GradientTape() as d_tape:
-        D_real_result = discriminator(images)
+    with tf.GradientTape() as d_tape, tf.GradientTape() as g_tape:
+        D_real_result = discriminator(images, training=d_train)
         D_real_loss = bce(valid, D_real_result)
 
         z = K.backend.random_normal([batch_size, latent_size]) # z with mean=0, std=1
-        x_fake = generator(z)
-        D_fake_result = discriminator(x_fake)
+        x_fake = generator(z, training=g_train)
+        D_fake_result = discriminator(x_fake, training=d_train)
         D_fake_loss = bce(fake, D_fake_result)
 
         D_train_loss = D_real_loss + D_fake_loss
+        G_train_loss = bce(valid, D_fake_result)
 
     if d_train:
         d_gradients = d_tape.gradient(D_train_loss, discriminator.trainable_variables)
         discriminator_optimizer.apply_gradients(zip(d_gradients, discriminator.trainable_variables))
 
-    with tf.GradientTape() as g_tape:
-        z = K.backend.random_normal([batch_size, latent_size]) # z with mean=0, std=1
-        x_fake = generator(z)
-
-        D_fake_result = discriminator(x_fake)
-        G_train_loss = bce(valid, D_fake_result)
-
     if g_train:
         g_gradients = g_tape.gradient(G_train_loss, generator.trainable_variables)
         g_optimizer.apply_gradients(zip(g_gradients, generator.trainable_variables))
 
+    # with tf.GradientTape() as g_tape:
+    #     z = K.backend.random_normal([batch_size, latent_size]) # z with mean=0, std=1
+    #     x_fake = generator(z, training=g_train)
+
+    #     D_fake_result = discriminator(x_fake, training=False)
+    #     G_train_loss = bce(valid, D_fake_result)
+
+    # if g_train:
+    #     g_gradients = g_tape.gradient(G_train_loss, generator.trainable_variables)
+    #     g_optimizer.apply_gradients(zip(g_gradients, generator.trainable_variables))
+
     with tf.GradientTape() as zd_tape:
         z_real = K.backend.random_normal([batch_size, latent_size]) # z with mean=0, std=1
 
-        zd_real_result = zdiscriminator(z_real)
+        zd_real_result = zdiscriminator(z_real, training=True)
         zd_real_loss = bce(valid, zd_real_result)
 
-        z_fake = encoder(images)
-        zd_fake_result = zdiscriminator(z_fake)
+        z_fake = encoder(images, training=True)
+        zd_fake_result = zdiscriminator(z_fake, training=True)
         zd_fake_loss = bce(fake, zd_fake_result)
 
         zd_train_loss = zd_real_loss + zd_fake_loss
@@ -87,10 +92,10 @@ def train_step(images, encoder, generator, discriminator, \
     zd_optimizer.apply_gradients(zip(zd_gradients, zdiscriminator.trainable_variables))
 
     with tf.GradientTape() as ge_tape:
-        z = encoder(images)
-        x_reconstructed = generator(z)
+        z = encoder(images, training=True)
+        x_reconstructed = generator(z, training=True)
 
-        zd_result = zdiscriminator(z)
+        zd_result = zdiscriminator(z, training=True)
 
         e_train_loss = bce(valid, zd_result)
 
@@ -111,17 +116,12 @@ def train_step(images, encoder, generator, discriminator, \
         'd_fake_loss': D_fake_loss,
         'd_real_loss': D_real_loss
 
-    }, {
-        'd_gradients': d_gradients,
-        'g_gradients': g_gradients,
-        'zd_gradients': zd_gradients,
-        'ge_gradients': ge_gradients
     }, x_reconstructed
 
 def get_zd(latent_size, act):
     i = L.Input([latent_size])
 
-    x = L.Dense(32)(i)
+    x = L.Dense(64)(i)
     x = act()(x)
     x = L.Dense(32)(x)
     x = act()(x)
@@ -142,10 +142,10 @@ def train():
     discriminator = make_encoder(128, 128, 3, act=lrelu, as_discriminator=True)
     zdiscriminator = get_zd(128, lrelu)
     
-    g_optimizer = O.Adam(beta_1=0, beta_2=0.1)
-    d_optimizer = O.Adam(beta_1=0, beta_2=0.9)
-    ge_optimizer = O.Adam(beta_1=0, beta_2=0.1)
-    zd_optimizer = O.Adam(beta_1=0, beta_2=0.9)
+    g_optimizer = O.Adam()
+    d_optimizer = O.Adam()
+    ge_optimizer = O.Adam()
+    zd_optimizer = O.Adam()
 
     progress = tqdm(train_dataset, desc='hazelnut', dynamic_ncols=True)
 
@@ -162,10 +162,10 @@ def train():
             d_train = True
         else:
             g_train = True
-            d_train = True # step % 3 == 0
+            d_train = step % 5 == 0
 
         # tf.summary.trace_on(graph=True)
-        losses, grad_r, images = train_step(
+        losses, images = train_step(
             image_batch,
             encoder,
             generator,
@@ -179,15 +179,11 @@ def train():
             d_train
         )
         # print(images.shape)
-        l2_norm = lambda t: K.backend.sqrt(K.backend.sum(K.backend.pow(t, 2)))
+
         with train_summary_writer.as_default():
             for name, val in losses.items():
                 if val:
                     tf.summary.scalar(name, val, step=step)
-            for name, grads in grad_r.items():
-                for grad in grads:
-                    tf.summary.scalar(f'{name}_scalar', l2_norm(grad), step=step)
-                    tf.summary.histogram(f'{name}_histo', l2_norm(grad), step=step)
 
             # tf.summary.scalar('gee_loss', losses['l_tot'], step=step)
             # tf.summary.scalar('d_loss', losses['d_loss'], step=step)
