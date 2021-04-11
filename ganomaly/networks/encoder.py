@@ -180,7 +180,7 @@ def e_block(x, n_filters, pool=True, use_bias=True, act=L.ReLU):
 
 #     return K.Model(inputs=i, outputs=o, name='encoder')
 
-def encoder_block(x, filters, act):
+def encoder_block(x, filters, act, bn):
     x = L.Conv2D(
         filters,
         kernel_size=3,
@@ -190,28 +190,28 @@ def encoder_block(x, filters, act):
         kernel_initializer='random_normal',
     )(x)
 
-    x = L.BatchNormalization()(x)
+    x = bn()(x)
     x = act()(x)
 
     return x
 
-def make_encoder(image_size, latent_size, channels=3, act=L.ReLU, as_discriminator=False):
+def make_encoder(image_size, latent_size, channels=3, act=L.ReLU, as_discriminator=False, bn=L.BatchNormalization):
     filters = 6
 
     i = L.Input([image_size, image_size, channels]) #128x128x3
-    x = encoder_block(i, filters, act) #64x64x64
-    x = encoder_block(x, filters*2, act) #32x32x128
-    x = encoder_block(x, filters*4, act) #16x16x256
-    x = encoder_block(x, filters*8, act) #8x8x512
-    x = encoder_block(x, filters*16, act) #4x4x1024
+    x = encoder_block(i, filters, act, bn) #64x64x64
+    x = encoder_block(x, filters*2, act, bn) #32x32x128
+    x = encoder_block(x, filters*4, act, bn) #16x16x256
+    x = encoder_block(x, filters*8, act, bn) #8x8x512
+    x = encoder_block(x, filters*16, act, bn) #4x4x1024
 
     x = L.Flatten()(x)
     x = L.Dense(16*filters, use_bias=False, kernel_initializer='random_normal')(x)
-    x = L.BatchNormalization()(x)
+    x = bn()(x)
     x = act()(x)
 
     if as_discriminator:
-        o = L.Dense(1, activation='sigmoid', kernel_initializer='random_normal')(x)
+        o = L.Dense(1, kernel_initializer='random_normal')(x)
 
     o = L.Dense(latent_size, kernel_initializer='random_normal')(x)
 

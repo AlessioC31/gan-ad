@@ -43,4 +43,13 @@ Discriminator is trained every 5 training steps of the generator.
 
 Images have not changed too much.
 
+## 09/04/2021
 
+WGAN-GP is implemented in generator and reconstruction discriminator.
+Discriminator is trained 5 times more than generator.
+
+Reconstructions are pretty good but we need metrics to evaluate them.
+
+### What to do next
+* Find and implement metrics (for both reconstructions and anomaly detection)
+* Use WGAN-GP also in encoder and latent-discriminator

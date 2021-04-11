@@ -30,6 +30,22 @@ def l2(true, pred):
 
     return K.backend.sum(K.backend.square(x - y), axis=1)
 
+def gradient_penalty(discriminator, batch_size, real_images, fake_images):
+    alpha = tf.random.normal([batch_size, 1, 1, 1], 0.0, 1.0)
+    diff = fake_images - real_images
+    interpolated = real_images + alpha * diff
+
+    with tf.GradientTape() as gp_tape:
+        gp_tape.watch(interpolated)
+
+        pred = discriminator(interpolated, training=True)
+    
+    grads = gp_tape.gradient(pred, [interpolated])[0]
+    norm = K.backend.sqrt(K.backend.sum(K.backend.square(grads), axis=[1,2,3]))
+    gp = K.backend.mean((norm - 1.0) ** 2)
+
+    return gp
+
 @tf.function
 def train_step(images, encoder, generator, discriminator, \
                 zdiscriminator, g_optimizer, discriminator_optimizer, \
@@ -47,16 +63,21 @@ def train_step(images, encoder, generator, discriminator, \
 
     with tf.GradientTape() as d_tape, tf.GradientTape() as g_tape:
         D_real_result = discriminator(images, training=d_train)
-        D_real_loss = bce(valid, D_real_result)
+        D_real_loss = K.backend.mean(D_real_result)
+        # D_real_loss = bce(valid, D_real_result)
 
         z = K.backend.random_normal([batch_size, latent_size]) # z with mean=0, std=1
         x_fake = generator(z, training=g_train)
         D_fake_result = discriminator(x_fake, training=d_train)
-        D_fake_loss = bce(fake, D_fake_result)
+        D_fake_loss = K.backend.mean(D_fake_result)
+        # D_fake_loss = bce(fake, D_fake_result)
+        #wgan-gp
+        gp = gradient_penalty(discriminator, batch_size, images, x_fake)
 
-        D_train_loss = D_real_loss + D_fake_loss
-        G_train_loss = bce(valid, D_fake_result)
-
+        D_train_loss = D_fake_loss - D_real_loss + gp * 10
+        G_train_loss = -K.backend.mean(D_fake_result)
+        # G_train_loss = bce(valid, D_fake_result)
+        
     if d_train:
         d_gradients = d_tape.gradient(D_train_loss, discriminator.trainable_variables)
         discriminator_optimizer.apply_gradients(zip(d_gradients, discriminator.trainable_variables))
@@ -139,7 +160,7 @@ def train():
     encoder = make_encoder(128, 128, 3, act=lrelu)
     generator = make_decoder(128, 3)
     # encoder2 = make_encoder(128, 128, 3, act=lrelu)
-    discriminator = make_encoder(128, 128, 3, act=lrelu, as_discriminator=True)
+    discriminator = make_encoder(128, 128, 3, act=lrelu, as_discriminator=True, bn=L.LayerNormalization)
     zdiscriminator = get_zd(128, lrelu)
     
     g_optimizer = O.Adam()
@@ -161,8 +182,9 @@ def train():
             g_train = True
             d_train = True
         else:
-            g_train = True
-            d_train = step % 5 == 0
+            g_train = step % 5 == 0
+            d_train = True
+            # d_train = step % 5 == 0
 
         # tf.summary.trace_on(graph=True)
         losses, images = train_step(

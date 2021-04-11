@@ -161,7 +161,7 @@ def d_block(x, n_filters, upsample=True, upsample_type='bilinear', use_bias=True
 #     o = L.Conv2D(3, kernel_size=1, activation='tanh', padding='same')(x)
 
 #     return K.Model(inputs=i, outputs=o, name='decoder')
-def generator_block(x, filters, act):
+def generator_block(x, filters, act, bn):
     # x = L.Conv2DTranspose(
     #     filters,
     #     kernel_size=4,
@@ -177,12 +177,12 @@ def generator_block(x, filters, act):
         use_bias=False,
         kernel_initializer='random_normal',
     )(x)
-    x = L.BatchNormalization()(x)
+    x = bn()(x)
     x = act()(x)
 
     return x
 
-def make_decoder(latent_size, channels=3, act=L.ReLU):
+def make_decoder(latent_size, channels=3, act=L.ReLU, bn=L.BatchNormalization):
     filters = 6
 
     i = L.Input([latent_size])
@@ -191,11 +191,11 @@ def make_decoder(latent_size, channels=3, act=L.ReLU):
     x = L.Dense(4*4*16*filters, use_bias=False, kernel_initializer='random_normal',)(x)
     x = L.Reshape([4,4,16*filters])(x)
 
-    x = generator_block(x, 16*filters, act)
-    x = generator_block(x, 8*filters, act)
-    x = generator_block(x, 4*filters, act)
-    x = generator_block(x, 2*filters, act)
-    x = generator_block(x, filters, act)
+    x = generator_block(x, 16*filters, act, bn)
+    x = generator_block(x, 8*filters, act, bn)
+    x = generator_block(x, 4*filters, act, bn)
+    x = generator_block(x, 2*filters, act, bn)
+    x = generator_block(x, filters, act, bn)
 
     x = L.Conv2D(
         channels,
